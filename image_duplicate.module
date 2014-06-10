@@ -5,12 +5,12 @@
  * Main file of image_duplicate.
  */
 include_once 'inc/phash.inc';
-include_once 'inc/surf.inc';
-include_once 'inc/fast_hessian.inc';
-include_once 'inc/gaussian_constants.inc';
-include_once 'inc/integral_image.inc';
-include_once 'inc/response_layer.inc';
-include_once 'inc/surf_interest_point.inc';
+include_once 'inc/surf/surf.inc';
+include_once 'inc/surf/fast_hessian.inc';
+include_once 'inc/surf/integral_image.inc';
+include_once 'inc/surf/response_layer.inc';
+include_once 'inc/surf/gaussian_constants.inc';
+include_once 'inc/surf/surf_interest_point.inc';
 
 function image_duplicate_form_node_form_alter(&$form, &$form_state, $form_id) {
   dpm($form_state);
@@ -25,9 +25,8 @@ function image_duplicate_node_view($node, $view_mode, $langcode) {
 //  dpm(surf_integral_image($image));
 
   $board = new Surf($image);
-//  $points = $board->getFreeOrientedInterestPoints();
+  $points = $board->getFreeOrientedInterestPoints();
 
-  dpm($board);
 //  dpm($points);
 
 //  phash_dct_imagehash($image);
