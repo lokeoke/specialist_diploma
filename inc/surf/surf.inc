@@ -55,7 +55,6 @@ class Surf {
     return $this->getPoints(FALSE);
   }
 
-  // List<SURFInterestPoint >
   private function getPoints($upright) {
     $points = $upright ? $this->mUprightPoints : $this->mFreeOrientedPoints;
     if ($points == NULL) {
@@ -73,7 +72,14 @@ class Surf {
         $this->getMDescriptor($point, $upright);
       }
     }
-    return $points;
+    $points_ret = array();
+    foreach ($points as $point) {
+      $points_ret[] = array(
+        'x' => $point->getX(),
+        'y' => $point->getY()
+      );
+    }
+    return $points_ret;
   }
 
   // List<SURFInterestPoint >
@@ -100,8 +106,7 @@ class Surf {
     - 1 * $this->mIntegralImage->getIntegralValue($row - $s / 2, $column - $s / 2, $s / 2, $s);
   }
 
-  private function getOrientation( /*SURFInterestPoint*/
-    $input) {
+  private function getOrientation($input) {
     /*double*/
     $scale = $input->getScale();
 
@@ -162,9 +167,7 @@ class Surf {
     $input->setOrientation($orientation);
   }
 
-  private function getMDescriptor( /*SURFInterestPoint*/
-    $point, /*boolean*/
-    $upright) {
+  private function getMDescriptor($point, $upright) {
     $count = 0;
     $co = 1;
     $si = 0;
@@ -260,9 +263,7 @@ class Surf {
     $point->setDescriptor($desc);
   }
 
-  private function getAngle( /*double*/
-    $xHaarResponse, /*double*/
-    $yHaarResponse) {
+  private function getAngle($xHaarResponse, $yHaarResponse) {
     if ($xHaarResponse > 0 && $yHaarResponse >= 0) {
       return atan($yHaarResponse / $xHaarResponse);
     }
@@ -282,7 +283,6 @@ class Surf {
     return 0;
   }
 
-  // Map<SURFInterestPoint,SURFInterestPoint>
   public function getMatchingPoints( $descriptor,  $upright) {
 
     /*Map<SURFInterestPoint,SURFInterestPoint>*/
@@ -325,14 +325,4 @@ class Surf {
   private function gaussian($x, $y, $sig) {
     return (1.0 / (2.0 * M_PI * $sig * $sig)) * exp(-($x * $x + $y * $y) / (2.0 * $sig * $sig));
   }
-
-  /*public function saveToFile(Surf surf,String file){
-  }
-
-  public function readFromFile(String location){
-  }
-
-  private void writeObject(ObjectOutputStream out) throws IOException {
-  }*/
-
 }

@@ -10,8 +10,7 @@ class FastHessian {
   );
 
   private $mIntegralImage;
-  private /*List<SURFInterestPoint>*/
-    $mInterestPoints;
+  private $mInterestPoints;
   private $mOctaves;
   private $mInitSample;
   private $mThreshold;
@@ -23,8 +22,7 @@ class FastHessian {
   /*List<ResponseLayer>*/
   private $mLayers;
 
-  function __construct( /*IntegralImage*/
-    $integralImage, $octaves, $initSample, $threshold, $balanceValue) {
+  function __construct($integralImage, $octaves, $initSample, $threshold, $balanceValue) {
     $this->mIntegralImage = $integralImage;
     $this->mOctaves = $octaves;
     $this->mInitSample = $initSample;
@@ -34,7 +32,6 @@ class FastHessian {
     $this->mHeight = $integralImage->getHeight();
   }
 
-  // List<SURFInterestPoint>
   public function getIPoints() {
     if ($this->mInterestPoints == NULL || $this->mRecalculateInterestPoints) {
       $this->mInterestPoints = array(); /*new LinkedList<SURFInterestPoint>()*/
@@ -130,7 +127,6 @@ class FastHessian {
     return TRUE;
   }
 
-  // SURFInterestPoint
   private function interpolateExtremum($r, $c, $t, $m, $b) {
     //should check to make sure that m's filter value is less than t's and greater than b's
     $filterStep = $m->getFilter() - $b->getFilter();

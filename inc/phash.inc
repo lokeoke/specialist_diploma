@@ -36,10 +36,63 @@ function phash_crop_array($array, $offset1, $offset2, $length1, $length2) {
   return $result;
 }
 
-function phash_get_pixel($image, $x, $y) {
-  $rgb = imagecolorsforindex($image->resource, imagecolorat($image->resource, $x, $y));
+function phash_get_pixel($resource, $x, $y) {
+  $rgb = imagecolorsforindex($resource, imagecolorat($resource, $x, $y));
 
   return ($rgb['red'] + $rgb['green'] + $rgb['blue']) / 3;
+}
+
+function phash_create_tmp ($resource, $extension, $width, $height) {
+  $res = imagecreatetruecolor($width, $height);
+
+  if ($extension == 'gif') {
+    // Grab transparent color index from image resource.
+    $transparent = imagecolortransparent($resource);
+
+    if ($transparent >= 0) {
+      // The original must have a transparent color, allocate to the new image.
+      $transparent_color = imagecolorsforindex($resource, $transparent);
+      $transparent = imagecolorallocate($res, $transparent_color['red'], $transparent_color['green'], $transparent_color['blue']);
+
+      // Flood with our new transparent color.
+      imagefill($res, 0, 0, $transparent);
+      imagecolortransparent($res, $transparent);
+    }
+  }
+  elseif ($extension == 'png') {
+    imagealphablending($res, FALSE);
+    $transparency = imagecolorallocatealpha($res, 0, 0, 0, 127);
+    imagefill($res, 0, 0, $transparency);
+    imagealphablending($res, TRUE);
+    imagesavealpha($res, TRUE);
+  }
+  else {
+    imagefill($res, 0, 0, imagecolorallocate($res, 255, 255, 255));
+  }
+
+  return $res;
+}
+
+function phash_resize(&$resource, $extension, $src_width, $src_height, $width, $height) {
+  $res = phash_create_tmp($resource, $extension, $width, $height);
+
+  if (!imagecopyresampled($res, $resource, 0, 0, 0, 0, $width, $height, $src_width, $src_height)) {
+    return FALSE;
+  }
+
+  // Update image object.
+  $resource = $res;
+  return TRUE;
+}
+
+function phash_desaturate($resource) {
+  // PHP installations using non-bundled GD do not have imagefilter.
+  if (!function_exists('imagefilter')) {
+    watchdog('image', 'The image %file could not be desaturated because the imagefilter() function is not available in this PHP installation.', array('%file' => $resource->source));
+    return FALSE;
+  }
+
+  return imagefilter($resource, IMG_FILTER_GRAYSCALE);
 }
 
 function phash_calculate_dct($in) {
@@ -62,7 +115,7 @@ function phash_calculate_dct($in) {
   return $results;
 }
 
-function phash_dct($image) {
+function phash_dct($resource) {
   $result = array();
   $rows = array();
   $row = array();
@@ -72,7 +125,7 @@ function phash_dct($image) {
 
   for ($j = 0; $j < $height; $j++) {
     for ($i = 0; $i < $width; $i++) {
-      $row[$i] = phash_get_pixel($image, $i, $j);
+      $row[$i] = phash_get_pixel($resource, $i, $j);
     }
 
     $rows[$j] = phash_calculate_dct($row);
@@ -106,10 +159,13 @@ function phash_get_average_dct_value($array) {
   return $result / $c;
 }
 
-function phash_dct_imagehash($image) {
-  if (image_resize($image, 32, 32)) {
-    if (image_desaturate($image)) {
-      $dct = phash_crop_array(phash_dct($image), 0, 0, 8, 8);
+function phash_dct_imagehash($resource, $extension, $src_width, $src_height) {
+  imagejpeg($resource, 'des1.jpg');
+  if (phash_resize($resource, $extension, $src_width, $src_height, 32, 32)) {
+    imagejpeg($resource, 'des2.jpg');
+    if (phash_desaturate($resource)) {
+      imagejpeg($resource, 'des3.jpg');
+      $dct = phash_crop_array(phash_dct($resource), 0, 0, 8, 8);
       $median = phash_get_average_dct_value($dct);
 
       $result = "";
@@ -124,8 +180,6 @@ function phash_dct_imagehash($image) {
       if ($len < 16) {
         $hex = str_repeat('0', 16 - $len) . $hex;
       }
-
-      dpm($hex);
 
       return $hex;
     }
