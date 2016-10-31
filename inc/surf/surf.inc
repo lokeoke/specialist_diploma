@@ -1,11 +1,5 @@
 <?php
 
-/**
- * A class to calculate the upright or free oriented interest points of an image lazily (will not calculate until you ask for them)
- * @author astromberg
- *
- */
-
 define('HESSIAN_OCTAVES', 5);
 define('HESSIAN_INTERVALS', 4);
 define('HESSIAN_INIT_SAMPLE', 2);
@@ -13,20 +7,16 @@ define('HESSIAN_THRESHOLD', 0.0004);
 define('HESSIAN_BALANCE_VALUE', 0.81);
 
 class Surf {
-
   private $mOriginalImage;
   private $mHessian;
   private $mFreeOrientedPoints;
   private $mUprightPoints;
   private $mDescriptorFreeInterestPoints;
 
-  //octaves = steps
-  private $mNumOctaves = HESSIAN_OCTAVES;
-  //private mNumIntervals = HESSIAN_INTERVALS;
-  private $mThreshold = HESSIAN_THRESHOLD;
-  private $mBalanceValue = HESSIAN_BALANCE_VALUE;
+  private $mNumOctaves;
+  private $mThreshold;
+  private $mBalanceValue;
 
-  // IntegralImage
   private $mIntegralImage;
 
   function __construct($image, $balanceValue = HESSIAN_BALANCE_VALUE, $threshold = HESSIAN_THRESHOLD, $octaves = HESSIAN_OCTAVES) {
@@ -45,12 +35,10 @@ class Surf {
     $this->mDescriptorFreeInterestPoints = $this->mHessian->getIPoints();
   }
 
-  // List<SURFInterestPoint >
   public function getUprightInterestPoints() {
     return $this->getPoints(TRUE);
   }
 
-  // List<SURFInterestPoint >
   public function getFreeOrientedInterestPoints() {
     return $this->getPoints(FALSE);
   }
@@ -66,7 +54,6 @@ class Surf {
       else {
         $this->mFreeOrientedPoints = $points;
       }
-      // SURFInterestPoint
       foreach ($points as $point) {
         $this->getOrientation($point);
         $this->getMDescriptor($point, $upright);
@@ -82,43 +69,33 @@ class Surf {
     return $points_ret;
   }
 
-  // List<SURFInterestPoint >
   private function getDescriptorFreeInterestPoints() {
-    $points = array(); //mDescriptorFreeInterestPoints . size()
+    $points = array();
     foreach ($this->mDescriptorFreeInterestPoints as $point) {
-      $points[] = clone $point; // (SURFInterestPoint)point . clone()
-      /*catch (CloneNotSupportedException e) {
-        e . printStackTrace();
-      }*/
+      $points[] = clone $point;
     }
     return $points;
   }
 
-  //TODO: Why the multiply by 1?
   private function haarX($row, $column, $s) {
     return $this->mIntegralImage->getIntegralValue($row - $s / 2, $column, $s, $s / 2)
     - 1 * $this->mIntegralImage->getIntegralValue($row - $s / 2, $column - $s / 2, $s, $s / 2);
   }
 
-  //TODO: Why the multiply by 1?
   private function haarY($row, $column, $s) {
     return $this->mIntegralImage->getIntegralValue($row, $column - $s / 2, $s / 2, $s)
     - 1 * $this->mIntegralImage->getIntegralValue($row - $s / 2, $column - $s / 2, $s / 2, $s);
   }
 
   private function getOrientation($input) {
-    /*double*/
     $scale = $input->getScale();
 
     $s = (int) round($scale);
     $r = (int) round($input->getY());
     $c = (int) round($input->getX());
 
-    /*List<Double > */
     $xHaarResponses = array();
-    /*List<Double > */
     $yHaarResponses = array();
-    /*List<Double > */
     $angles = array();
 
     //calculate haar responses for points within radius of 6*scale
@@ -126,12 +103,12 @@ class Surf {
       for ($j = -6; $j <= 6; ++$j) {
         if ($i * $i + $j * $j < 36) {
           $gauss = GaussianConstants::$Gauss25[abs($i)][abs($j)];
-					$xHaarResponse = $gauss * $this->haarX($r + $j * $s, $c + $i * $s, 4 * $s);
-					$yHaarResponse = $gauss * $this->haarY($r + $j * $s, $c + $i * $s, 4 * $s);
-					$xHaarResponses[] = $xHaarResponse;
-					$yHaarResponses[] = $yHaarResponse;
-					$angles[] = $this->getAngle($xHaarResponse, $yHaarResponse);
-				}
+          $xHaarResponse = $gauss * $this->haarX($r + $j * $s, $c + $i * $s, 4 * $s);
+          $yHaarResponse = $gauss * $this->haarY($r + $j * $s, $c + $i * $s, 4 * $s);
+          $xHaarResponses[] = $xHaarResponse;
+          $yHaarResponses[] = $yHaarResponse;
+          $angles[] = $this->getAngle($xHaarResponse, $yHaarResponse);
+        }
       }
     }
 
@@ -283,21 +260,18 @@ class Surf {
     return 0;
   }
 
-  public function getMatchingPoints( $descriptor,  $upright) {
+  public function getMatchingPoints($descriptor, $upright) {
 
-    /*Map<SURFInterestPoint,SURFInterestPoint>*/
     $matchingPoints = array();
-    /*List<SURFInterestPoint>*/
     $points = $upright ? $descriptor->getUprightInterestPoints() : $descriptor->getFreeOrientedInterestPoints();
 
-    foreach ($points as $a){
+    foreach ($points as $a) {
       $smallestDistance = INF;
       $nextSmallestDistance = INF;
-      /*SURFInterestPoint*/
       $possibleMatch = NULL;
 
       $candidate_points = $upright ? $descriptor->getUprightInterestPoints() : $descriptor->getFreeOrientedInterestPoints();
-      foreach ($candidate_points as $b ){
+      foreach ($candidate_points as $b) {
         $distance = $a->getDistance($b);
         if ($distance < $smallestDistance) {
           $nextSmallestDistance = $smallestDistance;
@@ -311,15 +285,15 @@ class Surf {
         }
       }
 
-		  // If match has a d1:d2 ratio < 0.65 ipoints are a match
-			//if ( smallestDistance/nextSmallestDistance < 0.65d ){
-			if ($smallestDistance / $nextSmallestDistance < 0.75) {
+      // If match has a d1:d2 ratio < 0.65 ipoints are a match
+      //if ( smallestDistance/nextSmallestDistance < 0.65d ){
+      if ($smallestDistance / $nextSmallestDistance < 0.75) {
         //not storing change in position
         $matchingPoints[$a] = $possibleMatch;
       }
-		}
+    }
 
-		return $matchingPoints;
+    return $matchingPoints;
   }
 
   private function gaussian($x, $y, $sig) {

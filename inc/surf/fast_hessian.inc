@@ -19,7 +19,6 @@ class FastHessian {
 
   private $mRecalculateInterestPoints = TRUE;
 
-  /*List<ResponseLayer>*/
   private $mLayers;
 
   function __construct($integralImage, $octaves, $initSample, $threshold, $balanceValue) {
@@ -34,7 +33,7 @@ class FastHessian {
 
   public function getIPoints() {
     if ($this->mInterestPoints == NULL || $this->mRecalculateInterestPoints) {
-      $this->mInterestPoints = array(); /*new LinkedList<SURFInterestPoint>()*/
+      $this->mInterestPoints = array();
       $this->buildResponseMap();
 
       for ($o = 0; $o < $this->mOctaves; $o++) {
@@ -48,7 +47,6 @@ class FastHessian {
           for ($r = 0; $r < $t->getHeight(); $r++) {
             for ($c = 0; $c < $t->getWidth(); $c++) {
               if ($this->isExtremum($r, $c, $t, $m, $b)) {
-                /*SURFInterestPoint*/
                 $point = $this->interpolateExtremum($r, $c, $t, $m, $b);
                 if ($point != NULL) {
                   $this->mInterestPoints[] = $point;
@@ -137,7 +135,7 @@ class FastHessian {
     $xc = $values[2];
 
     if (abs($xi) < 0.5 && abs($xr) < 0.5 && abs($xc) < 0.5) {
-      //WE"VE GOT AN INTEREST POINT HERE
+      //Got an interest point
       $x = (double) ($c + $xc) * $t->getStep();
       $y = (double) ($r + $xr) * $t->getStep();
       $scale = (double) (0.1333 * ($m->getFilter() + $xi * $filterStep));
@@ -147,66 +145,11 @@ class FastHessian {
     return NULL;
   }
 
-  /**
-   * Implements gaussian elimination solver with partial pivoting.
-   *
-   * @param double[][] $A coefficient matrix
-   * @param double[]   $b output vector
-   * @return double[]  $x solution vector
-   */
-  public static function solve($A, $b) {
-
-    /**
-     * Smallest deviation allowed in floating point comparisons.
-     */
-    $EPSILON = 1e-10;
-
-    // number of rows
-    $N  = count($b);
-
-    // forward elimination
-    for ($p=0; $p<$N; $p++) {
-
-      // find pivot row and swap
-      $max = $p;
-      for ($i = $p+1; $i < $N; $i++)
-        if (abs($A[$i][$p]) > abs($A[$max][$p]))
-          $max = $i;
-      $temp = $A[$p]; $A[$p] = $A[$max]; $A[$max] = $temp;
-      $t    = $b[$p]; $b[$p] = $b[$max]; $b[$max] = $t;
-
-      // check if matrix is singular
-      if (abs($A[$p][$p]) <= $EPSILON) die("Matrix is singular or nearly singular");
-
-      // pivot within A and b
-      for ($i = $p+1; $i < $N; $i++) {
-        $alpha = $A[$i][$p] / $A[$p][$p];
-        $b[$i] -= $alpha * $b[$p];
-        for ($j = $p; $j < $N; $j++)
-          $A[$i][$j] -= $alpha * $A[$p][$j];
-      }
-    }
-
-    // zero the solution vector
-    $x = array_fill(0, $N-1, 0);
-
-    // back substitution
-    for ($i = $N - 1; $i >= 0; $i--) {
-      $sum = 0.0;
-      for ($j = $i + 1; $j < $N; $j++)
-        $sum += $A[$i][$j] * $x[$j];
-      $x[$i] = ($b[$i] - $sum) / $A[$i][$i];
-    }
-
-    return $x;
-
-  }
-
   private function interpolateStep($r, $c, $t, $m, $b) {
     $values = array_fill(0, 3, 0.0);
 
-    $partialDerivs = $this->getPartialDerivativeMatrix($r,$c,$t,$m,$b);
-    $hessian3D = $this->getHessian3DMatrix($r,$c,$t,$m,$b);
+    $partialDerivs = $this->getPartialDerivativeMatrix($r, $c, $t, $m, $b);
+    $hessian3D = $this->getHessian3DMatrix($r, $c, $t, $m, $b);
 
     $values = FastHessian::solve($hessian3D, $partialDerivs);
 
@@ -219,12 +162,65 @@ class FastHessian {
     return $values;
   }
 
+  public static function solve($A, $b) {
+    $EPSILON = 1e-10;
+
+    // number of rows
+    $N = count($b);
+
+    // forward elimination
+    for ($p = 0; $p < $N; $p++) {
+
+      // find pivot row and swap
+      $max = $p;
+      for ($i = $p + 1; $i < $N; $i++) {
+        if (abs($A[$i][$p]) > abs($A[$max][$p])) {
+          $max = $i;
+        }
+      }
+      $temp = $A[$p];
+      $A[$p] = $A[$max];
+      $A[$max] = $temp;
+      $t = $b[$p];
+      $b[$p] = $b[$max];
+      $b[$max] = $t;
+
+      // check if matrix is singular
+      if (abs($A[$p][$p]) <= $EPSILON) {
+        die("Matrix is singular or nearly singular");
+      }
+
+      // pivot within A and b
+      for ($i = $p + 1; $i < $N; $i++) {
+        $alpha = $A[$i][$p] / $A[$p][$p];
+        $b[$i] -= $alpha * $b[$p];
+        for ($j = $p; $j < $N; $j++) {
+          $A[$i][$j] -= $alpha * $A[$p][$j];
+        }
+      }
+    }
+
+    // zero the solution vector
+    $x = array_fill(0, $N - 1, 0);
+
+    // back substitution
+    for ($i = $N - 1; $i >= 0; $i--) {
+      $sum = 0.0;
+      for ($j = $i + 1; $j < $N; $j++) {
+        $sum += $A[$i][$j] * $x[$j];
+      }
+      $x[$i] = ($b[$i] - $sum) / $A[$i][$i];
+    }
+
+    return $x;
+  }
+
   private function getPartialDerivativeMatrix($r, $c, $t, $m, $b) {
     //deriv[0] = dx, deriv[1] = dy, deriv[2] = ds
     $derivs = array();
 
     $derivs[0] = ($m->getResponse($r, $c + 1, $t) - $m->getResponse($r, $c - 1, $t)) / 2;
-    $derivs[1]= ($m->getResponse($r + 1, $c, $t) - $m->getResponse($r - 1, $c, $t)) / 2;
+    $derivs[1] = ($m->getResponse($r + 1, $c, $t) - $m->getResponse($r - 1, $c, $t)) / 2;
     $derivs[2] = ($t->getResponse($r, $c) - $b->getResponse($r, $c, $t)) / 2.0;
 
     return $derivs;
@@ -240,31 +236,31 @@ class FastHessian {
     $v = $m->getResponse($r, $c, $t);
 
     //dxx
-    $hessian[0][0] = $m->getResponse($r,$c+1,$t) +
-      $m->getResponse($r,$c-1,$t) - 2 * $v;
-		
-		//dyy
-		$hessian[1][1] = $m->getResponse($r+1,$c,$t) +
-      $m->getResponse($r-1,$c,$t) - 2 * $v;
-		
-		//dss
-		$hessian[2][2] = $t->getResponse($r,$c) +
-      $b->getResponse($r,$c,$t) - 2 * $v;
-		
-		//dxy
-		$hessian[0][1] = $hessian[1][0] = ($m->getResponse($r + 1, $c + 1, $t) -
+    $hessian[0][0] = $m->getResponse($r, $c + 1, $t) +
+      $m->getResponse($r, $c - 1, $t) - 2 * $v;
+
+    //dyy
+    $hessian[1][1] = $m->getResponse($r + 1, $c, $t) +
+      $m->getResponse($r - 1, $c, $t) - 2 * $v;
+
+    //dss
+    $hessian[2][2] = $t->getResponse($r, $c) +
+      $b->getResponse($r, $c, $t) - 2 * $v;
+
+    //dxy
+    $hessian[0][1] = $hessian[1][0] = ($m->getResponse($r + 1, $c + 1, $t) -
         $m->getResponse($r + 1, $c - 1, $t) -
         $m->getResponse($r - 1, $c + 1, $t) +
         $m->getResponse($r - 1, $c - 1, $t)) / 4.0;
-		
-		//dxs
-		$hessian[0][2] = $hessian[2][0] = ($t->getResponse($r, $c + 1) -
+
+    //dxs
+    $hessian[0][2] = $hessian[2][0] = ($t->getResponse($r, $c + 1) -
         $t->getResponse($r, $c - 1) -
         $b->getResponse($r, $c + 1, $t) +
         $b->getResponse($r, $c - 1, $t)) / 4.0;
-		
-		//dys
-		$hessian[1][2] = $hessian[2][1] = ($t->getResponse($r + 1, $c) -
+
+    //dys
+    $hessian[1][2] = $hessian[2][1] = ($t->getResponse($r + 1, $c) -
         $t->getResponse($r - 1, $c) -
         $b->getResponse($r + 1, $c, $t) +
         $b->getResponse($r - 1, $c, $t)) / 4.0;

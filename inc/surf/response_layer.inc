@@ -6,10 +6,8 @@ class ResponseLayer {
   private $mStep;
   private $mFilter;
 
-  private /*char[][]*/
-    $mLaplacian;
-  private /*double[][]*/
-    $mResponses;
+  private $mLaplacian;
+  private $mResponses;
 
   function __construct($width, $height, $step, $filter, $integralImage) {
     $this->mWidth = $width;
@@ -23,8 +21,7 @@ class ResponseLayer {
     $this->buildResponseLayer($integralImage);
   }
 
-  private function buildResponseLayer( /*IntegralImage*/
-    $img) {
+  private function buildResponseLayer($img) {
     $b = (int) (($this->mFilter - 1) / 2);
     $l = (int) ($this->mFilter / 3);
     $w = (int) $this->mFilter;
@@ -35,8 +32,8 @@ class ResponseLayer {
         $c = (int) ($ac * $this->mStep);
 
         // Compute response components
-        $Dxx = $img->getIntegralValue($r - $l + 1,$c - $b, 2 * $l - 1, $w)
-          - $img->getIntegralValue($r - $l + 1, $c - (int)($l / 2), 2 * $l - 1, $l) * 3;
+        $Dxx = $img->getIntegralValue($r - $l + 1, $c - $b, 2 * $l - 1, $w)
+          - $img->getIntegralValue($r - $l + 1, $c - (int) ($l / 2), 2 * $l - 1, $l) * 3;
 
         $Dyy = $img->getIntegralValue($r - $b, $c - $l + 1, $w, 2 * $l - 1)
           - $img->getIntegralValue($r - (int) ($l / 2), $c - $l + 1, $l, 2 * $l - 1) * 3;

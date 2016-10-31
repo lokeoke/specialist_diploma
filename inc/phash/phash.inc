@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains pHash implementation.
- */
-
 function phash_bin2hex($data) {
   $result = '';
   $len = strlen($data);
@@ -42,7 +37,7 @@ function phash_get_pixel($resource, $x, $y) {
   return ($rgb['red'] + $rgb['green'] + $rgb['blue']) / 3;
 }
 
-function phash_create_tmp ($resource, $extension, $width, $height) {
+function phash_create_tmp($resource, $extension, $width, $height) {
   $res = imagecreatetruecolor($width, $height);
 
   if ($extension == 'gif') {
@@ -93,6 +88,11 @@ function phash_desaturate($resource) {
   }
 
   return imagefilter($resource, IMG_FILTER_GRAYSCALE);
+}
+
+function phash_hamming_distance($string1, $string2) {
+  $res = array_diff_assoc(str_split($string1), str_split($string2));
+  return count($res);
 }
 
 function phash_calculate_dct($in) {
@@ -160,11 +160,8 @@ function phash_get_average_dct_value($array) {
 }
 
 function phash_dct_imagehash($resource, $extension, $src_width, $src_height) {
-  imagejpeg($resource, 'des1.jpg');
   if (phash_resize($resource, $extension, $src_width, $src_height, 32, 32)) {
-    imagejpeg($resource, 'des2.jpg');
     if (phash_desaturate($resource)) {
-      imagejpeg($resource, 'des3.jpg');
       $dct = phash_crop_array(phash_dct($resource), 0, 0, 8, 8);
       $median = phash_get_average_dct_value($dct);
 

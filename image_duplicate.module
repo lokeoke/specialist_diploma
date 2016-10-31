@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @file
- * Main file of image_duplicate.
- */
-include_once 'inc/phash.inc';
+include_once 'inc/phash/phash.inc';
 include_once 'inc/surf/surf.inc';
 include_once 'inc/surf/fast_hessian.inc';
 include_once 'inc/surf/integral_image.inc';
@@ -13,9 +9,6 @@ include_once 'inc/surf/gaussian_constants.inc';
 include_once 'inc/surf/surf_interest_point.inc';
 include_once 'inc/kmeans/kmeans.inc';
 
-/**
- * Implements hook_block_info().
- */
 function image_duplicate_block_info() {
   $blocks = array();
   $blocks['image_duplicate_search'] = array(
@@ -26,8 +19,7 @@ function image_duplicate_block_info() {
 
 function image_duplicate_file_insert($file) {
   $image = image_load($file->uri);
-  if($image) {
-    dpm($image);
+  if ($image) {
     $type = substr($image->info['mime_type'], strpos($image->info['mime_type'], "/") + 1);
     $url = file_create_url($file->uri);
     $image_gd = call_user_func('imagecreatefrom' . $type, $url);
@@ -35,11 +27,17 @@ function image_duplicate_file_insert($file) {
     $board = new Surf($image);
     $points = $board->getFreeOrientedInterestPoints();
 
+    // Print points
+    foreach ($points as $point) {
+      imageellipse($image_gd, $point['x'], $point['y'], 5, 5, 0);
+    }
+    call_user_func_array('image' . $type, array($image_gd, 'points.' . $image->info['extension']));
+
     $kmeans = new KMeans();
     $kmeans->setData($points)
       ->setXKey('x')
       ->setYKey('y')
-      ->setClusterCount(20)
+      ->setClusterCount(10)
       ->solve();
 
     $clusters = $kmeans->getClusters();
@@ -58,10 +56,8 @@ function image_duplicate_file_insert($file) {
         $width = $bounds['maxX'] - $bounds['minX'];
         $height = $bounds['maxY'] - $bounds['minY'];
 
-        imagerectangle($image_gd, $bounds['minX'], $bounds['minY'], $bounds['maxX'], $bounds['maxY'], 0);
-
-        $image_part = imagecreate ($width , $height);
-        imagecopy ($image_part, $image->resource, 0, 0, $bounds['minX'], $bounds['minY'], $width, $height);
+        $image_part = phash_create_tmp($image->resource, $image->info['extension'], $width, $height);
+        imagecopy($image_part, $image->resource, 0, 0, $bounds['minX'], $bounds['minY'], $width, $height);
 
         $phash[] = array(
           'fid' => $file->fid,
@@ -69,13 +65,13 @@ function image_duplicate_file_insert($file) {
           'phash' => phash_dct_imagehash($image_part, $image->info['extension'], $image->info['width'], $image->info['height'])
         );
 
-//      imagejpeg($image_part, 'test_part.jpg');
-        call_user_func_array('image' . $type, array($image_part,'test_part.' . $image->info['extension']));
+        // Add cluster
+        imagerectangle($image_gd, $bounds['minX'], $bounds['minY'], $bounds['maxX'], $bounds['maxY'], 0);
       }
     }
 
-    //  imagejpeg($image_gd, 'test.jpg');
-    call_user_func_array('image' . $type, array($image_gd,'test.' . $image->info['extension']));
+    // Print clusters
+    call_user_func_array('image' . $type, array($image_gd, 'clusters.' . $image->info['extension']));
 
     $query = db_insert('image_duplicate')->fields(array('fid', 'full', 'phash'));
     foreach ($phash as $record) {
@@ -83,15 +79,9 @@ function image_duplicate_file_insert($file) {
     }
     $query->execute();
 
-    foreach ($points as $point) {
-      imageellipse ($image_gd, $point['x'], $point['y'], 5, 5, 0);
-    }
   }
 }
 
-/**
- * Implements hook_block_view().
- */
 function image_duplicate_block_view($delta = '') {
   $block = array();
   switch ($delta) {
@@ -103,11 +93,12 @@ function image_duplicate_block_view($delta = '') {
   return $block;
 }
 
-function image_duplicate_serach_form(){
+function image_duplicate_serach_form() {
   $form = array();
   $form['image'] = array(
     '#title' => t('Image'),
     '#type' => 'managed_file',
+    '#description' => 'Upload an image and click "Search"',
     '#upload_location' => 'public://',
   );
 
@@ -118,91 +109,39 @@ function image_duplicate_serach_form(){
   return $form;
 }
 
-function image_duplicate_serach_form_submit($form, &$form_state){
+function image_duplicate_serach_form_submit($form, &$form_state) {
   if (isset($form_state['values']['image'])) {
-//    $file = file_load($form_state['values']['image']);
-//
-//    $file->status = FILE_STATUS_PERMANENT;
-//
-//    file_save($file);
+    $patterns = db_select('image_duplicate', 'i')
+      ->fields('i')
+      ->condition('fid', $form_state['values']['image'], '=')
+      ->execute()
+      ->fetchAll();
+
+    $haystack = db_select('image_duplicate', 'i')
+      ->fields('i')
+      ->condition('fid', $form_state['values']['image'], '!=')
+      ->execute()
+      ->fetchAll();
+
+    foreach ($patterns as $pattern) {
+      $pattern->phash = hex2bin($pattern->phash);
+    }
+
+    $candidate_list = array();
+
+    foreach ($haystack as $candidate) {
+      $candidate->phash = hex2bin($candidate->phash);
+      foreach ($patterns as $pattern) {
+        $diff = phash_hamming_distance();
+        if ($diff <= 10) {
+          $candidate_list[] = $candidate;
+        }
+      }
+    }
+
+    // Make file permanent
+    $file = file_load($form_state['values']['image']);
+    $file->status = FILE_STATUS_PERMANENT;
+    file_save($file);
   }
 }
-
-/*function image_duplicate_node_view($node, $view_mode, $langcode) {
-  $file = file_load(1);
-  $image = image_load($file->uri);
-  $type = substr($image->info['mime_type'], strpos($image->info['mime_type'], "/") + 1);
-  $url = file_create_url($file->uri);
-  $image_gd = call_user_func('imagecreatefrom' . $type, $url);
-
-
-//  $image = image_load('public://field/image/small_ship_copy.jpg');
-
-//  dpm(surf_integral_image($image));
-
-  $points = cache_get('surf_points');
-  if (!$points) {
-    $board = new Surf($image);
-    $points = $board->getFreeOrientedInterestPoints();
-    cache_set('surf_points', $points);
-  }
-  else {
-    $points = $points->data;
-  }
-
-
-  foreach ($points as $point) {
-    imageellipse ($image_gd, $point['x'], $point['y'], 5, 5, 0);
-  }
-
-  $kmeans = new KMeans();
-  $kmeans->setData($points)
-    ->setXKey('x')
-    ->setYKey('y')
-    ->setClusterCount(20)
-    ->solve();
-
-  $clusters = $kmeans->getClusters();
-  $phash = array();
-
-  $phash[] = array(
-    'fid' => $file->fid,
-    'full' => 1,
-    'phash' => phash_dct_imagehash($image->resource, $image->info['extension'], $image->info['width'], $image->info['height'])
-  );
-
-  foreach ($clusters as $cluster) {
-    $data = $cluster->getData();
-    if (!empty($data)) {
-      $bounds = $cluster->getBounds();
-      $width = $bounds['maxX'] - $bounds['minX'];
-      $height = $bounds['maxY'] - $bounds['minY'];
-      imagerectangle($image_gd, $bounds['minX'], $bounds['minY'], $bounds['maxX'], $bounds['maxY'], 0);
-      $image_part = imagecreate ($width , $height);
-      imagecopy ($image_part, $image->resource, 0, 0, $bounds['minX'], $bounds['minY'], $width, $height);
-
-      $phash[] = array(
-        'fid' => $file->fid,
-        'full' => 0,
-        'phash' => phash_dct_imagehash($image_part, $image->info['extension'], $image->info['width'], $image->info['height'])
-      );
-
-//      imagejpeg($image_part, 'test_part.jpg');
-      call_user_func_array('image' . $type, array($image_part,'test_part.' . $image->info['extension']));
-    }
-  }
-
-//  imagejpeg($image_gd, 'test.jpg');
-  call_user_func_array('image' . $type, array($image_gd,'test.' . $image->info['extension']));
-
-
-
-
-  $query = db_insert('image_duplicate')->fields(array('fid', 'full', 'phash'));
-  foreach ($phash as $record) {
-    $query->values($record);
-  }
-  $query->execute();
-
-
-}*/
